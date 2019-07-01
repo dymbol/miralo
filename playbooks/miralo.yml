@@ -1,0 +1,78 @@
+---
+- name: Set up Miralo media server
+  hosts: all
+  remote_user: root
+  become_method: sudo
+  vars:
+    main_password: "my-root-passwort"
+  tasks:
+    - name: Change root password
+      become: yes
+      shell: 'echo "root:{{main_password}}" | chpasswd'
+
+    - name: Set timezone
+      become: yes
+      shell: 'timedatectl set-timezone Europe/Warsaw'
+
+    - name: Create operating user
+      become: yes
+      user:
+        name: "{{oper_user}}"
+        shell: /bin/bash
+        state: present
+        create_home: true
+
+    - name: Add operating user to sudo
+      become: yes
+      user:
+        name: "{{oper_user}}"
+        state: present
+        append: true
+        groups: sudo
+
+    - name: Change operating user password
+      become: yes
+      shell: 'echo "{{oper_user}}:{{oper_password}}" | chpasswd'
+
+    - name: Set authorized key taken from file
+      become: yes
+      authorized_key:
+        user: "{{oper_user}}"
+        state: present
+        key: "{{ssh_keys_url}}"
+
+    - name: Set authorized key taken from file
+      authorized_key:
+        user: "root"
+        state: present
+        key: "{{ssh_keys_url}}"
+
+    - name: Update cache
+      become: yes
+      apt: update_cache=yes
+
+    - name: Install packages
+      become: yes
+      apt:
+        name:
+          - sudo
+          - curl
+          - screen
+          - git
+          - vim
+          - mc
+          - htop
+          - net-tools
+          - usbmount
+          - minidlna  
+        state: present
+        update_cache: yes
+
+    - name: Install security updates
+      become: yes
+      shell: apt-get -s dist-upgrade | grep "^Inst" | grep -i securi | awk -F " " {'print $2'} | xargs apt-get install -y
+      when: security_updates
+
+    - name: Cleaning
+      become: yes
+      shell: apt clean && apt autoclean
